@@ -1,0 +1,245 @@
+// =====================================================================================
+// PRISMA SCHEMA - fluxohub ADMIN PANEL
+// Banco de Dados PostgreSQL - Mapeamento dos 8 Domínios Core
+// =====================================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------
+// 1. USUÁRIOS E CONTROLE DE ACESSO (RBAC)
+// ---------------------------------------------------------
+enum Role {
+  SUPER_ADMIN
+  STORE_OWNER
+  STAFF
+  READONLY
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String   // Hash Argon2id
+  role      Role     @default(STORE_OWNER)
+  isActive  Boolean  @default(true) // Para Soft Delete / Desativação
+  
+  auditLogs AuditLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String   // ex: "UPDATE_PRODUCT"
+  entity     String   // ex: "Product"
+  entityId   String
+  beforeJson Json?    // Estado anterior
+  afterJson  Json?    // Estado novo
+  ip         String?
+  userAgent  String?
+  
+  timestamp  DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+// ---------------------------------------------------------
+// 2. INFORMAÇÕES DA EMPRESA (STORE INFO)
+// ---------------------------------------------------------
+model StoreInfo {
+  id          String   @id @default(uuid())
+  razaoSocial String
+  cnpj        String   @unique
+  fantasia    String
+  email       String
+  telefone    String
+  
+  // Endereço
+  cep         String
+  logradouro  String
+  numero      String
+  complemento String?
+  bairro      String
+  cidade      String
+  estado      String
+  
+  logoUrl     String?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("store_info")
+}
+
+// ---------------------------------------------------------
+// 3. APARÊNCIA DA LOJA (STORE APPEARANCE)
+// ---------------------------------------------------------
+model StoreAppearance {
+  id               String   @id @default(uuid())
+  primaryColor     String   @default("#000000")
+  secondaryColor   String   @default("#ffffff")
+  fontFamily       String   @default("Inter")
+  faviconUrl       String?
+  mainBannerUrl    String?
+  darkModeDefault  Boolean  @default(false)
+  customCss        String?  @db.Text
+
+  updatedAt        DateTime @updatedAt
+
+  @@map("store_appearance")
+}
+
+// ---------------------------------------------------------
+// 4. CATÁLOGO DE PRODUTOS
+// ---------------------------------------------------------
+model Category {
+  id        String     @id @default(uuid())
+  name      String     @unique
+  slug      String     @unique
+  parentId  String?
+  parent    Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id])
+  children  Category[] @relation("CategoryHierarchy")
+  products  Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("categories")
+}
+
+model Tag {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  products  Product[] @relation("ProductTags")
+
+  @@map("tags")
+}
+
+model Product {
+  id             String   @id @default(uuid())
+  name           String
+  sku            String   @unique
+  description    String   @db.Text // Rich Text TipTap
+  price          Decimal  @db.Decimal(10, 2)
+  promoPrice     Decimal? @db.Decimal(10, 2)
+  baseStock      Int      @default(0)
+  
+  // Dimensões Frete
+  weightKg       Decimal  @db.Decimal(10, 3)
+  lengthCm       Decimal  @db.Decimal(10, 2)
+  widthCm        Decimal  @db.Decimal(10, 2)
+  heightCm       Decimal  @db.Decimal(10, 2)
+
+  categoryId     String
+  category       Category @relation(fields: [categoryId], references: [id])
+  tags           Tag[]    @relation("ProductTags")
+  
+  images         ProductImage[]
+  variations     ProductVariation[]
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([sku])
+  @@map("products")
+}
+
+model ProductImage {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  url       String
+  order     Int      @default(0)
+
+  @@map("product_images")
+}
+
+model ProductVariation {
+  id        String   @id @default(uuid())
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  
+  name      String   // ex: "Cor", "Tamanho"
+  value     String   // ex: "Vermelho", "M"
+  stock     Int      @default(0)
+  skuSuffix String?
+
+  @@unique([productId, name, value])
+  @@map("product_variations")
+}
+
+// ---------------------------------------------------------
+// 5. INTEGRAÇÕES EXTERNAS
+// ---------------------------------------------------------
+model Integration {
+  id             String   @id @default(uuid())
+  providerType   String   // "PAYMENT", "SHIPPING", "ANALYTICS", "EMAIL"
+  providerName   String   // "STRIPE", "MERCADO_PAGO", "CORREIOS", "SENDGRID"
+  
+  // As credenciais devem ser salvas usando AES-256-GCM antes de persistir no banco
+  encryptedKeys  Json     
+  isSandbox      Boolean  @default(true)
+  webhookSecret  String?  // Também encriptado
+  
+  isActive       Boolean  @default(false)
+  updatedAt      DateTime @updatedAt
+
+  @@unique([providerType, providerName])
+  @@map("integrations")
+}
+
+// ---------------------------------------------------------
+// 6. POLÍTICAS DA LOJA
+// ---------------------------------------------------------
+model StorePolicy {
+  id               String   @id @default(uuid())
+  freeShippingMin  Decimal? @db.Decimal(10, 2)
+  maxInstallments  Int      @default(1)
+  exchangePolicy   String?  @db.Text
+  termsOfUse       String?  @db.Text
+  
+  updatedAt        DateTime @updatedAt
+
+  @@map("store_policies")
+}
+
+// ---------------------------------------------------------
+// 7. SEO E METADADOS GLOBAIS
+// ---------------------------------------------------------
+model SeoConfig {
+  id               String   @id @default(uuid())
+  pagePath         String   @unique // ex: "/", "/produtos"
+  title            String
+  metaDescription  String   @db.Text
+  openGraphImgUrl  String?
+  schemaOrgJson    Json?    // Markup JSON-LD
+
+  @@map("seo_configs")
+}
+
+// ---------------------------------------------------------
+// 8. NOTIFICAÇÕES E E-MAILS TRANSACIONAIS (TEMPLATES)
+// ---------------------------------------------------------
+model NotificationTemplate {
+  id          String   @id @default(uuid())
+  triggerType String   @unique // ex: "ORDER_CONFIRMED", "PAYMENT_APPROVED"
+  subject     String
+  htmlBody    String   @db.Text // Permite {{vars}}
+  isActive    Boolean  @default(true)
+
+  updatedAt   DateTime @updatedAt
+
+  @@map("notification_templates")
+}

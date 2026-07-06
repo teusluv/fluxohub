@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #f4f4f5; padding: 20px; }
+    .container { max-width: 500px; margin: 0 auto; background: #ffffff; border-radius: 8px; padding: 30px; }
+    .btn { display: inline-block; background: #16A34A; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 6px; font-weight: bold; margin-top: 20px; }
+    .footer { font-size: 12px; color: #71717a; margin-top: 30px; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h2>Confirme seu e-mail — fluxohub</h2>
+    <p>Olá, {{name}}!</p>
+    <p>Falta pouco para você acessar o fluxohub. Clique no botão abaixo para confirmar seu e-mail e ativar sua conta.</p>
+    <a href="{{verification_link}}" class="btn">Confirmar E-mail</a>
+    <p style="margin-top:20px; font-size: 13px; color: #71717a;">Se não foi você que criou esta conta, por favor, ignore este e-mail. Este link expira em 24 horas.</p>
+    <div class="footer">
+      fluxohub Marketplace &copy; 2026<br>
+      <a href="https://fluxohub.com/suporte" style="color: #16A34A;">Central de Suporte</a>
+    </div>
+  </div>
+</body>
+</html>
